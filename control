@@ -1,0 +1,9 @@
+Package: com.afeef.showendtime
+Name: Show End Time
+Depends: mobilesubstrate
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Description: Shows the estimated end time of YouTube videos
+Maintainer: Afeef Mohammed
+Author: Afeef Mohammed
+Section: Tweaks

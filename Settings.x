@@ -1,0 +1,100 @@
+#import <UIKit/UIKit.h>
+#import <YouTubeHeader/YTSettingsSectionItem.h>
+#import <YouTubeHeader/YTSettingsSectionItemManager.h>
+#import <YouTubeHeader/YTSettingsViewController.h>
+#import <YouTubeHeader/YTSettingsGroupData.h>
+#import <YouTubeHeader/YTIIcon.h>
+
+static const NSInteger TweakSection = 789;
+
+BOOL IsEnabled(NSString *key) {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:key];
+}
+
+@interface YTSettingsSectionItemManager (ShowEndTime)
+- (void)updateShowEndTimeSectionWithEntry:(id)entry;
+@end
+
+%hook YTSettingsGroupData
+- (NSArray <NSNumber *> *)orderedCategories {
+    if (class_getClassMethod(objc_getClass("YTSettingsGroupData"), @selector(tweaks))) {
+        NSMutableArray *tweaksArray = [%c(YTSettingsGroupData) performSelector:@selector(tweaks)];
+        if (![tweaksArray containsObject:@(TweakSection)]) {
+            [tweaksArray insertObject:@(TweakSection) atIndex:0]; 
+        }
+        return %orig;
+    }
+
+    if (self.type != 1) return %orig;
+    
+    NSArray *categories = %orig;
+    NSMutableArray *mutableCategories = [categories mutableCopy];
+    
+    if (![mutableCategories containsObject:@(TweakSection)]) {
+        [mutableCategories insertObject:@(TweakSection) atIndex:0];
+    }
+    return [mutableCategories copy];
+}
+%end
+
+%hook YTAppSettingsPresentationData
++ (NSArray <NSNumber *> *)settingsCategoryOrder {
+    NSArray <NSNumber *> *order = %orig;
+    if ([order containsObject:@(TweakSection)]) return order;
+    
+    NSUInteger insertIndex = [order indexOfObject:@(1)];
+    if (insertIndex != NSNotFound) {
+        NSMutableArray <NSNumber *> *mutableOrder = [order mutableCopy];
+        [mutableOrder insertObject:@(TweakSection) atIndex:insertIndex + 1];
+        return [mutableOrder copy];
+    }
+    return order;
+}
+%end
+
+%hook YTSettingsSectionItemManager
+%new
+- (void)updateShowEndTimeSectionWithEntry:(id)entry {
+    NSMutableArray *sectionItems = [NSMutableArray array];
+    Class YTSettingsSectionItemClass = %c(YTSettingsSectionItem);
+    
+    NSArray *tweakKeys = @[
+        @{@"key": @"videoEndTime", @"title": @"Show End Time"}
+    ];
+    
+    for (NSDictionary *dict in tweakKeys) {
+        NSString *key = dict[@"key"];
+        YTSettingsSectionItem *item = [YTSettingsSectionItemClass switchItemWithTitle:dict[@"title"]
+            titleDescription:nil
+            accessibilityIdentifier:nil
+            switchOn:IsEnabled(key)
+            switchBlock:^BOOL (id cell, BOOL enabled) {
+                [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:key];
+                return YES;
+            }
+            settingItemId:0];
+        [sectionItems addObject:item];
+    }
+    
+    YTSettingsViewController *settingsViewController = [self valueForKey:@"_settingsViewControllerDelegate"];
+    
+    YTIIcon *icon = [%c(YTIIcon) new];
+    if ([icon respondsToSelector:@selector(setIconType:)]) {
+        icon.iconType = YT_TUNE; 
+    }
+
+    if ([settingsViewController respondsToSelector:@selector(setSectionItems:forCategory:title:icon:titleDescription:headerHidden:)]) {
+        [settingsViewController setSectionItems:sectionItems forCategory:TweakSection title:@"YtLite Custom" icon:icon titleDescription:nil headerHidden:NO];
+    } else {
+        [settingsViewController setSectionItems:sectionItems forCategory:TweakSection title:@"YtLite Custom" titleDescription:nil headerHidden:NO];
+    }
+}
+
+- (void)updateSectionForCategory:(NSUInteger)category withEntry:(id)entry {
+    if (category == TweakSection) {
+        [self updateShowEndTimeSectionWithEntry:entry];
+        return;
+    }
+    %orig;
+}
+%end
